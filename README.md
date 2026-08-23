@@ -95,6 +95,7 @@ DATABASE_URL=postgresql+psycopg://...
 JWT_SECRET_KEY=...
 REFRESH_COOKIE_SECURE=true
 FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
+BACKEND_ORIGIN=https://your-render-service.onrender.com
 VOYAGE_API_KEY=...
 QDRANT_URL=...
 QDRANT_API_KEY=...
@@ -111,9 +112,10 @@ Set this Vercel environment variable:
 
 ```text
 VITE_API_BASE_URL=https://your-render-service.onrender.com
+VITE_BACKEND_ORIGIN=https://your-render-service.onrender.com
 ```
 
-You can also set `VITE_BACKEND_ORIGIN` to the same Render URL if you prefer that naming.
+`VITE_API_BASE_URL` and `VITE_BACKEND_ORIGIN` can point to the same Render backend URL. The frontend client accepts either variable.
 
 After the Vercel URL is known, update Render `FRONTEND_ORIGIN` to that exact Vercel origin so CORS and refresh cookies work.
 

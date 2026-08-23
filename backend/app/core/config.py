@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = Field(default="refresh_token", alias="REFRESH_COOKIE_NAME")
     refresh_cookie_secure: bool = Field(default=False, alias="REFRESH_COOKIE_SECURE")
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
+    backend_origin: str = Field(default="http://localhost:8000", alias="BACKEND_ORIGIN")
 
     voyage_api_key: str | None = Field(default=None, alias="VOYAGE_API_KEY")
     voyage_embedding_model: str = Field(default="voyage-3-large", alias="VOYAGE_EMBEDDING_MODEL")
@@ -32,3 +33,14 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def get_frontend_origins() -> list[str]:
+    settings = get_settings()
+    origins = [
+        origin.strip()
+        for origin in settings.frontend_origin.split(",")
+        if origin.strip()
+    ]
+    origins.extend(["http://localhost:5173", "http://127.0.0.1:5173"])
+    return sorted(set(origins))

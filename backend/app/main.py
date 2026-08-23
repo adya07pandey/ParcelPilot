@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
-from app.core.config import get_settings
+from app.core.config import get_frontend_origins, get_settings
 from app.core.database import Base, engine
 from app.core.exceptions import AppException, app_exception_handler
 from app.models import *  # noqa: F403
@@ -21,7 +21,7 @@ app.add_exception_handler(AppException, app_exception_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list({settings.frontend_origin, "http://localhost:5173", "http://127.0.0.1:5173"}),
+    allow_origins=get_frontend_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
