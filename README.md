@@ -1,184 +1,378 @@
 # ParcelPilot
 
-ParcelPilot is a logistics customer/support portal with an account-aware AI support agent. It combines structured operational data, document retrieval, role-based access control, and guided support workflows for shipment, cancellation, service-credit, ticket, product, and account questions.
+### AI-Powered Customer Support & Operations Platform
 
-## Submission Links
+ParcelPilot is a multi-tenant AI support platform for B2B logistics businesses.
 
-- Repository: https://github.com/adya07pandey/ParcelPilot
-- Hosted frontend: https://parcelpilot-beta.vercel.app
-- Hosted backend health: https://parcelpilot-m1ak.onrender.com/health
-- Submission form: https://forms.gle/hLGBrDrNRmK7UAbv6
+It connects customer self-service with internal support operations through two specialized AI experiences:
+* **Customer AI Support** — answers customer questions using their account data, applicable agreements, current policies, and product documentation.
+* **Support AI Investigation** — helps authorized support agents investigate tickets and operational issues across customers, orders, policies, agreements, and known issues.
 
-## Demo Accounts
+The platform also provides an **Admin** layer for managing users, accounts, knowledge, configuration, and auditing.
 
-Use the dataset password configured for the seeded demo users.
+---
+
+## Product Overview
 
 ```text
-Customer: aarav@northstar.example
-Support:  rohit@parcelpilot.example
-Admin:    admin@parcelpilot.example
-Password: Demo@123
+                         PARCELPILOT
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+          CUSTOMER                         SUPPORT
+              │                               │
+       Customer AI                       Support AI
+              │                               │
+              └───────────────┬───────────────┘
+                              │
+                         AUTH + RBAC
+                              │
+                      TENANT-AWARE TOOLS
+                              │
+          ┌───────────────────┴───────────────────┐
+          │                                       │
+      PostgreSQL                               Qdrant
+          │                                       │
+       Accounts                                Policies
+       Orders                                  Agreements
+       Tickets                                 SOPs
+       Users                                   Product Docs
+          │                                       │
+          └───────────────────┬───────────────────┘
+                              │
+                          LANGGRAPH
+                              │
+                             LLM
 ```
 
-## What Is Implemented
+---
 
-- Customer portal: dashboard, orders, order detail, tickets, ticket detail, AI support.
-- Support portal: dashboard, ticket queue/detail, customer directory/detail, orders/detail, policies and agreements, issues/incidents.
-- Authentication: JWT access token, rotating HttpOnly refresh cookie, logout, session restore after refresh.
-- Authorization: customer/support/admin RBAC and account-level tenant isolation.
-- AI support: guided category/subcategory flow, persistent conversation state, account-aware structured tools, document retrieval, confidence labels, and ticket/cancellation-request confirmation flows.
-- Data: Neon PostgreSQL schema and workbook import scripts for accounts, users, orders, shipment events, tickets, and ticket events.
-- RAG stack: Voyage embeddings, Qdrant document retrieval, Groq chat completion.
-- Deployment: Docker backend for Render, Vite frontend for Vercel, local Docker Compose.
+## User Roles
 
-## Documentation
+### Customer
+Customers can access only their own company's data.
 
-- [Architecture Note](docs/ARCHITECTURE_NOTE.md)
-- [Product Note](docs/PRODUCT_NOTE.md)
-- [AI Tool Usage](docs/AI_TOOL_USAGE.md)
-- [Demo Video Outline](docs/DEMO_VIDEO_OUTLINE.md)
-- [Submission Checklist](docs/SUBMISSION_CHECKLIST.md)
+**Pages**
+* Dashboard
+* Orders
+* Tickets
+* AI Support
+* Account
 
-## Tech Stack
+The Customer AI can access:
+```text
+Global Policies + Customer Agreement + Customer Orders + Customer Tickets + Product Documentation
+```
 
-- Frontend: React, Vite, CSS
-- Backend: FastAPI, SQLAlchemy, PostgreSQL/Neon
-- Agent/RAG: Groq, Voyage AI, Qdrant
-- Auth: JWT access token plus HttpOnly refresh cookie
-- Deployment: Vercel frontend, Render backend, Docker/Compose
+---
 
-## Local Backend Setup
+## AI Experiences
 
-```powershell
+### Customer AI Support
+Customers select a category and subcategory before entering their query.
+* **Shipments**
+* **Cancellations**
+* **Service Credits**
+* **Tickets**
+* **Product Help**
+* **Account Support**
+* **Other**
+
+Categories act as retrieval hints rather than hard restrictions. A question can require information from multiple domains.
+
+#### Workflow Example
+```text
+Customer
+   │
+   ▼
+Category / Subcategory
+   │
+   ▼
+Natural-language query
+   │
+   ▼
+Account + Order lookup
+   │
+   ▼
+Policy / Agreement retrieval
+   │
+   ▼
+Evidence + Conflict resolution
+   │
+   ▼
+Deterministic confidence
+   │
+   ├───────────────────┐
+   │                   │
+   ▼                   ▼
+Answer             Uncertain
+   │                   │
+   ▼                   ▼
+            Ticket proposal
+                       │
+                       ▼
+               User confirmation
+```
+
+### Support AI Investigation
+Support agents can investigate a customer or select a company and category.
+
+```text
+  Company
+     │
+  Category
+     │
+  Question
+     │
+ Authorization
+     │
+ ┌───┴────────┬──────────┐
+ │            │          │
+Qdrant   PostgreSQL   Tickets
+ │            │          │
+ └───┬────────┴──────────┘
+     │
+  Evidence
+     │
+     ▼
+AI Investigation
+```
+The company/category selection helps narrow retrieval, but authorization is always enforced by the backend.
+
+---
+
+## Trust & Reliability
+
+ParcelPilot does not treat all information as equally authoritative.
+
+```text
+Signed Customer Agreement > Current ParcelPilot Policy > Current Product Documentation > Historical Tickets
+```
+
+* **Customer Agreements**: Can override general policies.
+* **Deprecated Policies**: Excluded from current-policy reasoning.
+* **Historical Ticket Resolutions**: Treated as context only and may contain incorrect guidance.
+
+### Confidence Scoring
+Confidence is calculated from evidence availability and source reliability, rather than being generated by the **LLM**.
+
+* **HIGH** → Answer directly
+* **MEDIUM** → Explain missing/conflicting information + offer ticket
+* **LOW** → Avoid unsupported answer + recommend escalation
+
+---
+
+## Proactive Operations
+
+ParcelPilot also addresses the client's proactive issue-detection problem.
+
+The support operations dashboard surfaces:
+* **Recurring complaints**
+* **Cross-customer patterns**
+* **SLA risks**
+* **Known issue patterns**
+* **Unusual support activity**
+
+Support agents can open an issue and investigate it using Support AI.
+
+---
+
+## Technology Stack
+
+| Component | Technology |
+| :--- | :--- |
+| **Frontend** | React |
+| **Backend** | FastAPI |
+| **Database** | PostgreSQL |
+| **Vector DB** | Qdrant |
+| **Agent Orchestration** | LangGraph |
+| **LLM** | Groq-hosted open-source LLM |
+| **Embeddings** | Voyage AI |
+| **Authentication** | JWT + HTTP-only Cookies |
+| **Authorization** | RBAC + Tenant-scoped tools |
+| **Deployment** | Docker |
+
+---
+
+## Architecture
+
+```text
+Customer / Support / Admin
+            │
+        React App
+            │
+         FastAPI
+            │
+      Authentication
+        + RBAC
+            │
+     ┌──────┴──────┐
+     │             │
+ PostgreSQL      Qdrant
+     │             │
+Structured      Policies
+Data            Agreements
+                SOPs
+                Product Docs
+     │             │
+     └──────┬──────┘
+            │
+        LangGraph
+            │
+           LLM
+            │
+     Evidence-based
+       Response
+            │
+     Human Confirmation
+            │
+        State Change
+```
+
+Detailed architecture is available in:
+* `docs/01_PRODUCT.md`
+* `docs/02_ARCHITECTURE.md`
+* `docs/03_AI_AND_RAG.md`
+* `docs/04_SECURITY.md`
+* `docs/05_SUPPORT_OPERATIONS.md`
+* `docs/06_PRODUCT_DECISIONS.md`
+* `docs/07_SUBMISSION.md`
+
+---
+
+## Repository Structure
+
+```text
+ParcelPilot/
+│
+├── frontend/
+├── backend/
+├── data/
+├── docs/
+│   ├── 01_PRODUCT.md
+│   ├── 02_ARCHITECTURE.md
+│   ├── 03_AI_AND_RAG.md
+│   ├── 04_SECURITY.md
+│   ├── 05_SUPPORT_OPERATIONS.md
+│   ├── 06_PRODUCT_DECISIONS.md
+│   └── 07_SUBMISSION.md
+│
+├── docker-compose.yml
+└── README.md
+```
+
+---
+
+## Setup & Run
+
+### Prerequisites
+* **Node.js 20+**
+* **Python 3.11+**
+* **PostgreSQL**
+* **Docker**
+* **Qdrant**
+* **API keys** for the configured LLM and embedding provider
+
+### 1. Clone
+```bash
+git clone https://github.com/adya07pandey/ParcelPilot.git
+cd ParcelPilot
+```
+
+### 2. Start Infrastructure
+```bash
+docker compose up -d
+```
+This starts the required local infrastructure such as PostgreSQL and Qdrant.
+
+### 3. Backend Setup
+```bash
 cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python -m venv venv
+```
+
+**Activate Environment:**
+* **Windows**: `venv\Scripts\activate`
+* **Linux/macOS**: `source venv/bin/activate`
+
+**Install Dependencies:**
+```bash
 pip install -r requirements.txt
-Copy-Item .env.example .env
 ```
 
-Set the required values in `backend/.env`:
-
-```text
-DATABASE_URL=postgresql+psycopg://...
-JWT_SECRET_KEY=...
-FRONTEND_ORIGIN=http://localhost:5173
-BACKEND_ORIGIN=http://localhost:8000
-VOYAGE_API_KEY=...
-QDRANT_URL=...
-QDRANT_API_KEY=...
-GROQ_API_KEY=...
+Create a `.env` file inside the `backend` folder:
+```env
+DATABASE_URL=
+JWT_SECRET=
+QDRANT_URL=
+QDRANT_API_KEY=
+LLM_API_KEY=
+EMBEDDING_API_KEY=
 ```
 
-Import the dataset:
-
-```powershell
-python scripts/import_dataset.py
-python scripts/backfill_ticket_categories.py
-```
-
-Ingest documents after Qdrant/Voyage are configured:
-
-```powershell
-python scripts/ingest_documents.py
-```
-
-Run the API:
-
-```powershell
+**Run the Backend:**
+```bash
 uvicorn app.main:app --reload
 ```
 
-## Local Frontend Setup
-
-```powershell
+### 4. Frontend Setup
+```bash
 cd frontend
 npm install
 npm run dev
 ```
+The application will be available at the Vite development URL shown in your terminal.
 
-Set `frontend/.env`:
+---
 
-```text
-VITE_BACKEND_ORIGIN=http://localhost:8000
-VITE_API_BASE_URL=http://localhost:8000
-```
+## Assessment Coverage
 
-## Docker Compose
+| Requirement | Implementation |
+| :--- | :--- |
+| **Natural-language chatbot** | Customer AI + Support AI |
+| **Document retrieval** | Qdrant |
+| **Structured data** | PostgreSQL tools |
+| **State-changing action** | Tickets / Shipments |
+| **Confirmation before actions** | Yes |
+| **Multi-step requests** | LangGraph |
+| **Access control** | RBAC |
+| **Tenant isolation** | Backend + tool layer |
+| **Policy conflicts** | Agreement precedence |
+| **Deprecated policies** | Version-aware retrieval |
+| **Historical ticket handling** | Context only |
+| **Confidence** | Deterministic |
+| **Proactive issue visibility** | Support Operations |
+| **Human-in-the-loop** | Yes |
 
-Use Compose for local full-stack testing:
+---
 
-```powershell
-docker compose up --build
-```
+## Documentation
 
-Local URLs:
+| Document | Purpose |
+| :--- | :--- |
+| `docs/01_PRODUCT.md` | Product, roles, pages, and workflows |
+| `docs/02_ARCHITECTURE.md` | System and agent architecture |
+| `docs/03_AI_AND_RAG.md` | Qdrant, retrieval, and reliability |
+| `docs/04_SECURITY.md` | RBAC and multi-tenancy |
+| `docs/05_SUPPORT_OPERATIONS.md` | Support AI and proactive operations |
+| `docs/06_PRODUCT_DECISIONS.md` | Decisions, trade-offs, and future work |
+| `docs/07_SUBMISSION.md` | Demo, AI tool usage, and submission details |
 
-- Frontend: http://localhost:5173
-- Backend: http://localhost:8000
-- Health: http://localhost:8000/health
+---
 
-## Deployment
+## Demo
 
-### Render Backend
+* **Hosted Application**: *Coming Soon*
+* **Demo Video**: *Coming Soon*
 
-Use the root `Dockerfile` or configure Render with:
+---
 
-```text
-Root Directory: backend
-Dockerfile Path: ./Dockerfile
-Docker Build Context Directory: .
-Docker Command: empty
-```
+## Repository
 
-Required Render env vars:
+* [GitHub Repository](https://github.com/adya07pandey/ParcelPilot.git)
 
-```text
-DATABASE_URL=postgresql+psycopg://...
-JWT_SECRET_KEY=...
-REFRESH_COOKIE_SECURE=true
-FRONTEND_ORIGIN=https://parcelpilot-beta.vercel.app
-BACKEND_ORIGIN=https://parcelpilot-m1ak.onrender.com
-VOYAGE_API_KEY=...
-QDRANT_URL=...
-QDRANT_API_KEY=...
-GROQ_API_KEY=...
-```
+---
 
-### Vercel Frontend
+## Core Idea
 
-Vercel settings:
-
-```text
-Root Directory: frontend
-Install Command: npm ci
-Build Command: npm run build
-Output Directory: dist
-```
-
-Required Vercel env vars:
-
-```text
-VITE_BACKEND_ORIGIN=https://parcelpilot-m1ak.onrender.com
-VITE_API_BASE_URL=https://parcelpilot-m1ak.onrender.com
-```
-
-## Repo Organization
-
-```text
-backend/app/auth          Authentication and refresh-token flow
-backend/app/routers       API routers
-backend/app/models        SQLAlchemy models
-backend/app/ai            AI orchestration, providers, parsing, evidence, data access
-backend/app/tickets       Ticket classification helpers
-backend/scripts           Dataset import, document ingest, diagnostics
-frontend/src/customer     Customer portal components/pages/utils
-frontend/src/support      Support portal components/pages/utils
-frontend/src/api          API client
-frontend/src/auth         Auth provider/session restore
-docs                      Submission notes
-```
-
-## Notes
-
-Real `.env` files, API keys, local virtual environments, build output, and logs are intentionally ignored. The public repo should contain only examples and deployment instructions, not secrets.
+ParcelPilot connects customer self-service, evidence-backed AI investigation, and proactive support operations into one multi-tenant platform.
