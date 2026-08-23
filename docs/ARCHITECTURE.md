@@ -2,171 +2,88 @@
 
 ## 1. Architecture Overview
 
-ParcelPilot uses a multi-tenant architecture with separate layers for:
-* Authentication and RBAC
-* Structured operational data
-* Document retrieval
-* AI agent orchestration
-* State-changing actions
+ParcelPilot follows a multi-tenant architecture where authentication, structured data, knowledge retrieval, and AI reasoning are separated.
 
 ```text
 Customer / Support / Admin
             │
-         React
+        Web Application
             │
-         FastAPI
+          API
             │
-     Authentication + RBAC
+      Authentication
+          + RBAC
             │
      ┌──────┴──────┐
      │             │
-PostgreSQL       Qdrant
-     │             │
-Orders          Policies
-Tickets         Agreements
-Accounts        SOPs
-Users           Product Docs
+ Structured     Knowledge
+   Data          Base
      │             │
      └──────┬──────┘
             │
         LangGraph
             │
-           LLM
-            │
       Tool Selection
             │
-      Evidence + Reasoning
+     Evidence Analysis
+            │
+     Confidence Check
             │
       Response / Action
 ```
 
 ---
 
-## 2. Frontend
+## 2. Agent Architecture
 
-The frontend is built with React. It provides separate interfaces based on the authenticated user's role:
-```text
-Customer → Customer Portal
-Support  → Support Portal
-Admin    → Admin Portal
-```
-
-The frontend communicates with the backend through REST APIs and handles:
-* Chat interface
-* Dashboards
-* Order and ticket views
-* Category selection
-* Action confirmation
-* Ticket draft editing
-* Role-based navigation
-
-Authorization is not trusted to the frontend; the backend performs the actual access checks.
-
----
-
-## 3. Backend
-
-The backend is built with FastAPI. It handles:
-* Authentication
-* RBAC
-* Tenant isolation
-* Business logic
-* Database access
-* AI agent execution
-* Tool execution
-* State-changing actions
-* Logging and error handling
-
-The AI agent never receives unrestricted database access. Instead, it interacts through controlled backend tools.
-
----
-
-## 4. PostgreSQL
-
-PostgreSQL stores structured operational data. Main entities include:
-```text
-Users
-Accounts
-Orders
-Tickets
-Conversations
-Actions
-Audit Logs
-```
-
-Example relationships:
-```text
-Account
-  ├── Users
-  ├── Orders
-  └── Tickets
-```
-The authenticated account context is used to restrict customer queries to their own data.
-
----
-
-## 5. Qdrant
-
-Qdrant is used as the vector database for ParcelPilot's document knowledge base. Documents include support policies, cancellation SOPs, customer agreements, product documentation, and known issues.
-
-Each chunk contains metadata such as:
-```text
-document_id
-document_type
-account_id
-scope
-version
-status
-effective_from
-effective_to
-category
-authority
-```
-This allows retrieval to be filtered by tenant, document status, category, and applicability.
-
----
-
-## 6. LangGraph Agent
-
-LangGraph orchestrates the AI workflow. A typical customer request follows:
+LangGraph manages the state of an AI interaction and coordinates multiple tools when a request requires information from different sources.
 
 ```text
 User Query
     │
     ▼
-Intent / Entity Identification
+Understand Intent
     │
     ▼
-Determine Required Tools
+Identify Required Information
     │
     ├───────────────────┬───────────────────┐
     │                                       │
     ▼                                       ▼
-Structured Lookup                       Qdrant Retrieval
+Structured Data                     Knowledge Search
+    │                                       │
+ Orders / Tickets                    Policies / Agreements
+ Accounts                            SOPs / Product Docs
     │                                       │
     └───────────────────┬───────────────────┘
                         │
                         ▼
-                Evidence Analysis
+                 Evidence Merge
                         │
                         ▼
-               Conflict Resolution
+             Source Conflict Check
                         │
                         ▼
              Deterministic Confidence
                         │
-                        ▼
-                  Final Response
+                  ┌─────┴─────┐
+                  │           │
+                  ▼           ▼
+                Answer      Uncertain
+                              │
+                              ▼
+                        Ticket Proposal
 ```
-Complex questions can execute multiple tools before producing an answer.
+
+A request can execute multiple tools before the final response is generated.
 
 ---
 
-## 7. Agent Tools
+## 3. Tool Architecture
 
-The agent uses controlled tools rather than directly accessing databases.
+The agent does not directly access databases or application state. It interacts through controlled backend tools.
 
-### Read Tools
+### Structured-Data Tools
 ```text
 get_account()
 get_order()
@@ -175,14 +92,13 @@ get_ticket()
 search_tickets()
 ```
 
-### Knowledge Tool
+### Knowledge Retrieval
 ```text
 search_knowledge()
 ```
-This searches Qdrant using semantic retrieval and metadata filters.
+This retrieves relevant documents from Qdrant using semantic search and metadata filters.
 
 ### Calculation / Decision Tools
-Examples:
 ```text
 calculate_sla()
 check_cancellation_eligibility()
@@ -194,145 +110,224 @@ calculate_service_credit()
 create_ticket()
 cancel_shipment()
 ```
-State-changing tools require explicit confirmation before execution.
+State-changing tools require explicit user confirmation.
 
 ---
 
-## 8. Multi-Step Investigation
-
-A single request may require several tools.
-
-Example:
-> Can Northstar cancel ORD-1001 without a fee?
+## 4. Customer AI Flow
 
 ```text
-get_account()
+Customer Query
       │
       ▼
-get_order()
+Authenticated Account Context
       │
       ▼
-search_knowledge()
-      │
-      ├─► Northstar Agreement
-      │
-      └─► Cancellation SOP
+Intent + Entity Detection
       │
       ▼
-Resolve Policy Conflict
+Select Tools
       │
-      ▼
-Determine Eligibility
-      │
-      ▼
-Generate Answer
+      ├──────────────────┬──────────────────┐
+      │                                     │
+      ▼                                     ▼
+Order / Ticket                      Policy / Agreement
+Lookup                              Retrieval
+      │                                     │
+      └──────────────────┬──────────────────┘
+                         │
+                         ▼
+                  Evidence Analysis
+                         │
+                         ▼
+                Conflict Resolution
+                         │
+                         ▼
+               Deterministic Confidence
+                         │
+                         ▼
+                       Answer
 ```
-The same architecture is used by Support AI for more complex investigations.
+
+### Flow Example
+```text
+"Can I cancel ORD-1001 without a fee?"
+
+        │
+        ├──► Get Order
+        ├──► Get Customer Account
+        ├──► Retrieve Cancellation SOP
+        ├──► Retrieve Customer Agreement
+        ├──► Resolve Agreement vs SOP
+        ├──► Determine Eligibility
+        └──► Answer
+```
 
 ---
 
-## 9. Support AI Architecture
+## 5. Support AI Flow
 
-Support AI has a wider investigation scope than Customer AI.
+Support AI follows the same core architecture but can investigate a broader scope of authorized customer data.
 
 ```text
 Support Agent
       │
 Company / Category
       │
-Investigation Query
+Investigation Question
       │
 Authorization Check
       │
 ┌─────┼─────────┬─────────┐
 │               │         │
 ▼               ▼         ▼
-PostgreSQL     Qdrant   Tickets
+Orders        Tickets   Knowledge
 │               │         │
 └───────────────┼─────────┘
                 │
-          Evidence Merge
+                ▼
+         Evidence Analysis
                 │
+                ▼
           AI Investigation
                 │
+                ▼
           Recommendation
 ```
-Company and category selections help narrow retrieval, while backend authorization determines the actual accessible data.
+Company and category selections act as retrieval hints. They do not replace backend authorization and do not prevent the agent from retrieving information from another relevant category.
 
 ---
 
-## 10. State-Changing Workflow
+## 6. Knowledge Retrieval
 
-Actions are never executed directly from an LLM response.
+Documents are stored with metadata so retrieval can respect both tenant scope and document applicability.
 
+### Metadata Schema Example
 ```text
-AI decides action is required
-            │
-            ▼
-     Prepare action
-            │
-            ▼
-    User confirmation
-            │
-            ▼
-   Backend authorization
-            │
-            ▼
-    Re-check current state
-            │
-            ▼
-      Execute action
-            │
-            ▼
-       Audit action
+document_type
+account_id
+scope
+version
+status
+effective_from
+effective_to
+category
+authority
 ```
 
-Before cancelling a shipment, the backend verifies that:
-* The user owns or is authorized to operate on the order.
-* The order still exists.
-* The order is eligible for cancellation.
-* The current state has not changed.
+For a customer request, retrieval is compiled from:
+```text
+Global Documents + Documents belonging to the authenticated account
+```
+Documents belonging to other customer accounts are strictly excluded by the metadata layer.
 
 ---
 
-## 11. Conversation Architecture
+## 7. Source Resolution
 
-The current AI conversation is stored so users can leave the AI Support page and return without losing the active conversation. 
-
-The system maintains the active conversation context rather than indefinitely storing every conversational state as an active session. Starting a new conversation closes the previous active session. Conversation history can still be retained separately if required for ticket or audit purposes.
-
----
-
-## 12. Technology Stack
-
-| Layer | Technology |
-| :--- | :--- |
-| **Frontend** | React |
-| **Backend** | FastAPI |
-| **Database** | PostgreSQL |
-| **Vector Database** | Qdrant |
-| **Agent Orchestration** | LangGraph |
-| **LLM** | Groq-hosted open-source LLM |
-| **Embeddings** | Voyage AI |
-| **Authentication** | JWT + HTTP-only Cookies |
-| **Authorization** | RBAC + Tenant Scoping |
-| **Containerization** | Docker |
-
----
-
-## 13. Key Architectural Principle
-
-The LLM is responsible for **reasoning and tool selection**, not for enforcing security or directly changing application state.
+When multiple sources are retrieved, the agent applies the defined source precedence rules:
 
 ```text
-LLM
- │
- │ decides what information/action is needed
- ▼
-Backend Tools
- │
- │ enforce authorization and business rules
- ▼
-Data / State
+Signed Customer Agreement > Current ParcelPilot Policy > Current Product Documentation > Historical Tickets
 ```
-This separation makes the system safer, more deterministic, and easier to audit.
+
+This structural hierarchy prevents an outdated policy or incorrect historical ticket resolution from overriding an applicable customer agreement or current corporate standard.
+
+---
+
+## 8. State-Changing Actions
+
+The LLM never directly mutates application state.
+
+```text
+AI determines action
+        │
+        ▼
+Prepare action
+        │
+        ▼
+User confirmation
+        │
+        ▼
+Backend authorization
+        │
+        ▼
+Re-check current state
+        │
+        ▼
+Execute action
+        │
+        ▼
+Audit / Log
+```
+For example, before cancelling an order, the backend checks the latest operational order status and cancellation eligibility parameters again.
+
+---
+
+## 9. Multi-Tenant Boundary
+
+Tenant isolation is strictly enforced at the backend and tool layer.
+
+### Customer Isolation
+```text
+Authenticated Customer
+        │
+        ▼
+   Own Account
+        ├──► Own Orders
+        ├──► Own Tickets
+        ├──► Own Agreement
+        └──► Global Knowledge
+```
+
+### Support User Isolation
+```text
+Authorized Support User
+        │
+        ▼
+Authorized Accounts
+        ├──► Orders
+        ├──► Tickets
+        ├──► Agreements
+        └──► Global Knowledge
+```
+The LLM is never trusted to calculate or enforce these logical boundaries.
+
+---
+
+## 10. Conversation State
+
+The active AI conversation is persisted so that a customer can navigate away from the AI Support view and return without losing their active session context.
+
+An active session schema tracks:
+```text
+conversation_id
+account_id
+selected_category
+selected_order
+messages
+current_intent
+```
+Starting a new conversation explicitly closes out the active session.
+
+---
+
+## 11. Key Architectural Principle
+
+The LLM is exclusively responsible for reasoning and deciding which tools are required. The application backend holds the definitive responsibility for security enforcement and state validation.
+
+```text
+              LLM
+               │
+        Reasoning / Planning
+               │
+               ▼
+        Controlled Tools
+               │
+       Authorization +
+       Business Rules
+               │
+               ▼
+       Data / Application State
+```
+This engineering pattern keeps the generative AI layers modular and flexible, while ensuring security and critical business logic remain deterministic and safe.
