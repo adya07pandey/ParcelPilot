@@ -229,14 +229,16 @@ Data            Agreements
         State Change
 ```
 
-Detailed architecture is available in:
-* `docs/01_PRODUCT.md`
-* `docs/02_ARCHITECTURE.md`
-* `docs/03_AI_AND_RAG.md`
-* `docs/04_SECURITY.md`
-* `docs/05_SUPPORT_OPERATIONS.md`
-* `docs/06_PRODUCT_DECISIONS.md`
-* `docs/07_SUBMISSION.md`
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Product & User Experience](docs/PRODUCT.md) | Roles, pages, customer AI and support workflows |
+| [System Architecture](docs/ARCHITECTURE.md) | Agent architecture, tools and system flow |
+| [AI, RAG & Trust](docs/AI,RAG AND TRUST.md) | Qdrant, retrieval, policy precedence and confidence |
+| [Security & Multi-Tenancy](docs/SECURITY.md) | RBAC, authentication and tenant isolation |
+| [Support Operations](docs/SUPPORT_OPERATIONS.md) | Support AI, SLA analysis and proactive issue visibility |
+| [Product Decisions](docs/PRODUCT_DECISIONS.md) | Key decisions, trade-offs and future improvements |
 
 ---
 
