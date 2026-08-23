@@ -113,6 +113,8 @@ Set this Vercel environment variable:
 VITE_API_BASE_URL=https://your-render-service.onrender.com
 ```
 
+You can also set `VITE_BACKEND_ORIGIN` to the same Render URL if you prefer that naming.
+
 After the Vercel URL is known, update Render `FRONTEND_ORIGIN` to that exact Vercel origin so CORS and refresh cookies work.
 
 ## Implemented So Far

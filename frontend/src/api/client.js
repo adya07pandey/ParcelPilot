@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000" || "http://localhost:8001" ;
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_BACKEND_ORIGIN ||
+  "http://localhost:8000";
 let accessToken = null;
 
 export function setAccessToken(token) {
