@@ -33,7 +33,7 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
     allowed = {role.value for role in roles}
 
     def dependency(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in allowed:
+        if str(current_user.role or "").upper() not in allowed:
             raise AuthorizationError()
         return current_user
 
@@ -41,6 +41,6 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
 
 
 def can_access_account(current_user: User, account_id: str) -> bool:
-    if current_user.role in {Role.SUPPORT.value, Role.ADMIN.value}:
+    if str(current_user.role or "").upper() in {Role.SUPPORT.value, Role.ADMIN.value}:
         return True
     return current_user.account_id == account_id

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import re
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -12,6 +13,7 @@ from app.auth.dependencies import require_roles
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.models import Account, AgentConversation, AgentMessage, Order, Role, ShipmentEvent, Ticket, User
+from app.support.investigation import run_support_investigation
 
 router = APIRouter(prefix="/support", tags=["support"])
 
@@ -59,6 +61,11 @@ POLICIES = [
         "summary": "Previous support policy retained for historical questions.",
     },
 ]
+
+
+class InvestigationRequest(BaseModel):
+    account_id: str | None = Field(default=None, max_length=32)
+    question: str = Field(min_length=3, max_length=2000)
 
 
 def normalize_priority(priority: str | None) -> str:
@@ -402,6 +409,16 @@ def issues(_: User = SUPPORT_USER, db: Session = Depends(get_db)) -> list[dict]:
     accounts = account_map(db)
     tickets = db.scalars(select(Ticket).order_by(Ticket.created_at.desc().nullslast())).all()
     return issue_groups(tickets, accounts)
+
+
+@router.post("/investigate")
+def investigate(payload: InvestigationRequest, current_user: User = SUPPORT_USER, db: Session = Depends(get_db)) -> dict:
+    return run_support_investigation(
+        db,
+        current_user=current_user,
+        account_id=payload.account_id,
+        question=payload.question,
+    )
 
 
 def agreement_for_account(account: Account) -> dict:

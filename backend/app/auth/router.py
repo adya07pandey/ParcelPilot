@@ -14,19 +14,27 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 def set_refresh_cookie(response: Response, raw_token: str) -> None:
     settings = get_settings()
+    same_site = "none" if settings.refresh_cookie_secure else "lax"
     response.set_cookie(
         key=settings.refresh_cookie_name,
         value=raw_token,
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="lax",
+        samesite=same_site,
         path="/api/v1/auth",
         max_age=settings.refresh_token_days * 24 * 60 * 60,
     )
 
 
 def clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(key=get_settings().refresh_cookie_name, path="/api/v1/auth")
+    settings = get_settings()
+    same_site = "none" if settings.refresh_cookie_secure else "lax"
+    response.delete_cookie(
+        key=settings.refresh_cookie_name,
+        path="/api/v1/auth",
+        secure=settings.refresh_cookie_secure,
+        samesite=same_site,
+    )
 
 
 @router.post("/login", response_model=AuthResponse)

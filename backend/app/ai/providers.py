@@ -153,11 +153,12 @@ class QdrantDocumentStore:
         *,
         vector: list[float],
         account_id: str | None,
+        include_all_accounts: bool = False,
         limit: int = 6,
         effective_at: str | None = None,
     ) -> list[RetrievedChunk]:
         await self.ensure_collection(len(vector))
-        tenant_filter = self._tenant_filter(account_id)
+        tenant_filter = self._tenant_filter(account_id, include_all_accounts=include_all_accounts)
         _ = effective_at
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -216,9 +217,59 @@ class QdrantDocumentStore:
                 code="QDRANT_UPSERT_FAILED",
             )
 
-    def _tenant_filter(self, account_id: str | None) -> dict[str, Any]:
+    async def scroll_account_documents(
+        self,
+        *,
+        account_id: str,
+        document_type: str = "customer_agreement",
+        limit: int = 4,
+    ) -> list[RetrievedChunk]:
+        if not account_id:
+            return []
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                response = await client.post(
+                    f"{self.collection_url}/points/scroll",
+                    headers=self._headers(),
+                    json={
+                        "limit": limit,
+                        "with_payload": True,
+                        "filter": {
+                            "must": [
+                                {"key": "scope", "match": {"value": "ACCOUNT"}},
+                                {"key": "account_id", "match": {"value": account_id}},
+                                {"key": "document_type", "match": {"value": document_type}},
+                            ]
+                        },
+                    },
+                )
+            except httpx.RequestError as exc:
+                raise ExternalServiceError(
+                    f"Qdrant account document fetch failed: {exc}",
+                    code="QDRANT_CONNECTION_FAILED",
+                ) from exc
+        if response.status_code >= 400:
+            raise ExternalServiceError(
+                f"Qdrant account document fetch failed ({response.status_code}): {response.text[:500]}",
+                code="QDRANT_SCROLL_FAILED",
+            )
+
+        points = response.json().get("result", {}).get("points", [])
+        return [
+            RetrievedChunk(
+                chunk_id=str(item.get("id")),
+                text=(item.get("payload") or {}).get("text", ""),
+                score=1.0,
+                metadata={key: value for key, value in (item.get("payload") or {}).items() if key != "text"},
+            )
+            for item in points
+        ]
+
+    def _tenant_filter(self, account_id: str | None, *, include_all_accounts: bool = False) -> dict[str, Any]:
         allowed_scopes: list[dict[str, Any]] = [{"key": "scope", "match": {"value": "GLOBAL"}}]
-        if account_id:
+        if include_all_accounts:
+            allowed_scopes.append({"key": "scope", "match": {"value": "ACCOUNT"}})
+        elif account_id:
             allowed_scopes.append({"key": "account_id", "match": {"value": account_id}})
         return {"should": allowed_scopes}
 
@@ -263,6 +314,7 @@ async def search_authorized_documents(
     *,
     query: str,
     account_id: str | None,
+    include_all_accounts: bool = False,
     effective_at: str | None = None,
     limit: int = 6,
 ) -> list[RetrievedChunk]:
@@ -271,6 +323,13 @@ async def search_authorized_documents(
     return await QdrantDocumentStore().search(
         vector=vector,
         account_id=account_id,
+        include_all_accounts=include_all_accounts,
         effective_at=effective_at,
         limit=limit,
     )
+
+
+async def fetch_authorized_account_agreement(*, account_id: str | None, limit: int = 4) -> list[RetrievedChunk]:
+    if not account_id:
+        return []
+    return await QdrantDocumentStore().scroll_account_documents(account_id=account_id, limit=limit)

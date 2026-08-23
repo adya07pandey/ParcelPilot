@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import require_roles
 from app.ai.service import (
     confirm_cancellation_action,
     create_ticket_from_pending_action,
@@ -12,9 +12,10 @@ from app.ai.service import (
 )
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models import User
+from app.models import Role, User
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+CUSTOMER_USER = Depends(require_roles(Role.CUSTOMER))
 
 
 class ChatRequest(BaseModel):
@@ -49,7 +50,7 @@ class ActionConfirmRequest(BaseModel):
 
 
 @router.get("/providers")
-def provider_status(current_user: User = Depends(get_current_user)) -> dict:
+def provider_status(current_user: User = CUSTOMER_USER) -> dict:
     settings = get_settings()
     return {
         "voyage": {
@@ -70,7 +71,7 @@ def provider_status(current_user: User = Depends(get_current_user)) -> dict:
 
 @router.get("/conversation")
 def current_conversation(
-    current_user: User = Depends(get_current_user),
+    current_user: User = CUSTOMER_USER,
     db: Session = Depends(get_db),
 ) -> dict:
     return get_current_conversation_state(db, current_user=current_user)
@@ -78,7 +79,7 @@ def current_conversation(
 
 @router.post("/conversation/new")
 def new_conversation(
-    current_user: User = Depends(get_current_user),
+    current_user: User = CUSTOMER_USER,
     db: Session = Depends(get_db),
 ) -> dict:
     return reset_current_conversation(db, current_user=current_user)
@@ -87,7 +88,7 @@ def new_conversation(
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     payload: ChatRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = CUSTOMER_USER,
     db: Session = Depends(get_db),
 ) -> dict:
     return await run_customer_agent(
@@ -105,7 +106,7 @@ async def chat(
 @router.post("/tickets/confirm")
 def confirm_ticket(
     payload: TicketConfirmRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = CUSTOMER_USER,
     db: Session = Depends(get_db),
 ) -> dict:
     return create_ticket_from_pending_action(
@@ -120,7 +121,7 @@ def confirm_ticket(
 @router.post("/actions/cancel/confirm")
 def confirm_cancel(
     payload: ActionConfirmRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = CUSTOMER_USER,
     db: Session = Depends(get_db),
 ) -> dict:
     return confirm_cancellation_action(

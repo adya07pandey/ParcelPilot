@@ -11,7 +11,7 @@ def get_authorized_order(db: Session, *, order_id: str, current_user: User) -> d
     order = db.scalar(select(Order).where(Order.order_id == order_id).options(selectinload(Order.events)))
     if not order:
         raise NotFoundError("Order not found", code="ORDER_NOT_FOUND")
-    if current_user.role == "CUSTOMER" and order.account_id != current_user.account_id:
+    if str(current_user.role or "").upper() == "CUSTOMER" and order.account_id != current_user.account_id:
         raise AuthorizationError("Order not found or not accessible", code="ORDER_NOT_ACCESSIBLE")
     return serialize_order(order)
 
@@ -20,14 +20,14 @@ def find_authorized_order(db: Session, *, order_id: str, current_user: User) -> 
     order = db.scalar(select(Order).where(Order.order_id == order_id).options(selectinload(Order.events)))
     if not order:
         return None
-    if current_user.role == "CUSTOMER" and order.account_id != current_user.account_id:
+    if str(current_user.role or "").upper() == "CUSTOMER" and order.account_id != current_user.account_id:
         return None
     return serialize_order(order)
 
 
 def list_authorized_orders_by_carrier(db: Session, *, carrier: str, current_user: User) -> list[dict]:
     query = select(Order).where(Order.carrier.ilike(carrier)).options(selectinload(Order.events)).order_by(Order.order_id)
-    if current_user.role == "CUSTOMER":
+    if str(current_user.role or "").upper() == "CUSTOMER":
         query = query.where(Order.account_id == current_user.account_id)
     return [serialize_order(order) for order in db.scalars(query).unique().all()]
 
@@ -36,7 +36,7 @@ def get_authorized_ticket(db: Session, *, ticket_id: str, current_user: User) ->
     ticket = db.scalar(select(Ticket).where(Ticket.ticket_id == ticket_id).options(selectinload(Ticket.events)))
     if not ticket:
         raise NotFoundError("Ticket not found", code="TICKET_NOT_FOUND")
-    if current_user.role == "CUSTOMER" and ticket.account_id != current_user.account_id:
+    if str(current_user.role or "").upper() == "CUSTOMER" and ticket.account_id != current_user.account_id:
         raise AuthorizationError("Ticket not found or not accessible", code="TICKET_NOT_ACCESSIBLE")
     return serialize_ticket(ticket)
 

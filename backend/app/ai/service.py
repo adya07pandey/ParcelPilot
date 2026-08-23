@@ -14,7 +14,7 @@ from app.ai.data_access import (
 )
 from app.ai.evidence import calculate_confidence, filter_applicable_document_chunks, summarize_sources
 from app.ai.parsing import extract_entities, infer_category, infer_intent, normalize_context_value
-from app.ai.providers import GroqChat, search_authorized_documents
+from app.ai.providers import GroqChat, fetch_authorized_account_agreement, search_authorized_documents
 from app.ai.response_formatting import append_ticket_offer, clean_answer, cleanLabel, format_order_choices, format_order_status_answer
 from app.core.config import get_settings
 from app.core.exceptions import AuthorizationError, ExternalServiceError, ValidationError
@@ -142,7 +142,13 @@ async def run_customer_agent(
                 query=message,
                 account_id=current_user.account_id,
                 effective_at=settings.dataset_snapshot_time,
+                limit=8,
             )
+            if is_account_policy_question(message):
+                document_chunks = merge_document_chunks(
+                    document_chunks,
+                    await fetch_authorized_account_agreement(account_id=current_user.account_id),
+                )
             document_chunks = filter_applicable_document_chunks(
                 document_chunks,
                 message=message,
@@ -195,6 +201,35 @@ async def run_customer_agent(
         evidence=evidence,
         provider_ready=provider_ready,
     )
+
+
+def is_account_policy_question(message: str) -> bool:
+    text = message.lower()
+    return any(
+        phrase in text
+        for phrase in [
+            "policy",
+            "policies",
+            "contract",
+            "agreement",
+            "terms",
+            "sla",
+            "plan",
+            "northstar",
+            "lumenworks",
+        ]
+    )
+
+
+def merge_document_chunks(primary, extra):
+    merged = []
+    seen = set()
+    for chunk in [*primary, *extra]:
+        if chunk.chunk_id in seen:
+            continue
+        seen.add(chunk.chunk_id)
+        merged.append(chunk)
+    return merged
 
 
 def persist_agent_response(
@@ -681,6 +716,8 @@ async def generate_answer(*, message: str, evidence: list[dict], has_document_ev
         "You are ParcelPilot AI Support. Answer only from the supplied evidence. "
         "You may use account, order, ticket, and event records as operational truth for the authenticated customer. "
         "Customer agreements override general policy only when they explicitly cover the same issue. "
+        "If evidence includes a customer_agreement document for the authenticated account, treat it as that customer's "
+        "account-specific policy/contract evidence; do not say the system lacks that customer's policy documents. "
         "Use conversation category/subcategory as an initial routing hint, but answer the customer's actual "
         "natural-language question even when it crosses multiple support areas. "
         "Mention uncertainty and recommend support escalation when evidence is incomplete. "

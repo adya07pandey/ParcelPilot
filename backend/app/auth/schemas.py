@@ -26,7 +26,7 @@ def user_response(user) -> UserResponse:
         id=user.user_id,
         name=user.name,
         email=user.email,
-        role=user.role,
+        role=str(user.role or "").upper(),
         account_id=user.account_id,
         company=user.company,
     )
