@@ -1,0 +1,118 @@
+# ParcelPilot — Product Decisions & Trade-offs
+
+## 1. Why Two AI Experiences?
+
+| Customer AI | Support AI |
+| :--- | :--- |
+| Customer self-service | Internal investigation |
+| Own-account data | Authorized customer data |
+| Simple operational actions | Deeper investigation |
+| User confirmation | Support review |
+
+Separating the two keeps the experience focused and makes access boundaries easier to enforce.
+
+---
+
+## 2. Why Categories?
+
+Categories make the chatbot easier to navigate and provide an initial retrieval hint.
+
+| Customer | Support |
+| :--- | :--- |
+| Shipments | Company |
+| Cancellations | Category |
+| Service Credits | Subcategory |
+| Tickets | Investigation |
+| Product Help | |
+| Account Support | |
+| Other | |
+
+Categories are **not hard boundaries**. If a question requires information from multiple areas, the AI can retrieve it.
+
+---
+
+## 3. Why Deterministic Confidence?
+
+The LLM does not decide its own confidence score.
+
+| Factor | Considered |
+| :--- | :---: |
+| Evidence completeness | Yes |
+| Source authority | Yes |
+| Freshness | Yes |
+| Customer applicability | Yes |
+| Conflicting sources | Yes |
+
+| Confidence | Behaviour |
+| :--- | :--- |
+| **HIGH** | Answer directly |
+| **MEDIUM** | Explain limitation + offer ticket |
+| **LOW** | Avoid guessing + recommend escalation |
+
+This makes confidence reproducible and easier to audit.
+
+---
+
+## 4. Why Human Confirmation?
+
+AI can **prepare** an action, but the user must confirm it.
+
+```text
+AI prepares action
+       │
+       ▼
+User confirms
+       │
+       ▼
+Backend validates again
+       │
+       ▼
+Action executes
+```
+
+Used for actions such as shipment cancellation and ticket creation.
+
+---
+
+## 5. Source Precedence
+
+When information conflicts, ParcelPilot follows:
+
+```text
+Customer Agreement > Current Policy > Product Documentation > Historical Tickets
+```
+
+This structural hierarchy prevents outdated or incorrect historical guidance from overriding applicable customer terms.
+
+---
+
+## 6. What We Intentionally Left Out
+
+| Not included | Reason |
+| :--- | :--- |
+| **Direct carrier integrations** | Requires external carrier APIs |
+| **Full return-to-origin execution** | Requires carrier workflow |
+| **Replacement shipment creation** | Outside current product scope |
+| **Automatic financial credits** | Requires additional approval controls |
+
+---
+
+## 7. Future Priorities
+
+| Priority | Improvement |
+| :---: | :--- |
+| **1** | Carrier integrations |
+| **2** | Advanced anomaly detection |
+| **3** | Service-credit workflows |
+| **4** | Engineering incident integration |
+| **5** | Proactive customer notifications |
+
+---
+
+## 8. Success Metrics
+
+### Primary Metric
+* **Median Time-to-Resolution for AI-assisted tickets** — The goal is to reduce the time support agents spend manually searching across orders, tickets, agreements, policies, and product documentation.
+
+### Secondary Metric
+* **AI-assisted resolution rate** — Percentage of tickets where AI provides sufficient evidence for the support agent to resolve the issue without additional manual investigation.
