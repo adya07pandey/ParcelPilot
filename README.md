@@ -1,14 +1,53 @@
 # ParcelPilot
 
-ParcelPilot is a FastAPI + React foundation for the AI support-agent assessment. This first slice sets up the database, authentication, refresh-cookie lifecycle, role checks, and tenant-scoped order/ticket APIs.
+ParcelPilot is a logistics customer/support portal with an account-aware AI support agent. It combines structured operational data, document retrieval, role-based access control, and guided support workflows for shipment, cancellation, service-credit, ticket, product, and account questions.
 
-## Stack
+## Submission Links
 
-- Backend: FastAPI, SQLAlchemy, PostgreSQL/Neon, JWT access tokens, HttpOnly refresh cookies
-- Frontend: React + Vite + CSS
-- Data source: `data/ParcelPilot_full_dataset.xlsx`
+- Repository: https://github.com/adya07pandey/ParcelPilot
+- Hosted frontend: https://parcelpilot-beta.vercel.app
+- Hosted backend health: https://parcelpilot-m1ak.onrender.com/health
+- Submission form: https://forms.gle/hLGBrDrNRmK7UAbv6
 
-## Backend Setup
+## Demo Accounts
+
+Use the dataset password configured for the seeded demo users.
+
+```text
+Customer: aarav@northstar.example
+Support:  rohit@parcelpilot.example
+Admin:    admin@parcelpilot.example
+Password: Demo@123
+```
+
+## What Is Implemented
+
+- Customer portal: dashboard, orders, order detail, tickets, ticket detail, AI support.
+- Support portal: dashboard, ticket queue/detail, customer directory/detail, orders/detail, policies and agreements, issues/incidents.
+- Authentication: JWT access token, rotating HttpOnly refresh cookie, logout, session restore after refresh.
+- Authorization: customer/support/admin RBAC and account-level tenant isolation.
+- AI support: guided category/subcategory flow, persistent conversation state, account-aware structured tools, document retrieval, confidence labels, and ticket/cancellation-request confirmation flows.
+- Data: Neon PostgreSQL schema and workbook import scripts for accounts, users, orders, shipment events, tickets, and ticket events.
+- RAG stack: Voyage embeddings, Qdrant document retrieval, Groq chat completion.
+- Deployment: Docker backend for Render, Vite frontend for Vercel, local Docker Compose.
+
+## Documentation
+
+- [Architecture Note](docs/ARCHITECTURE_NOTE.md)
+- [Product Note](docs/PRODUCT_NOTE.md)
+- [AI Tool Usage](docs/AI_TOOL_USAGE.md)
+- [Demo Video Outline](docs/DEMO_VIDEO_OUTLINE.md)
+- [Submission Checklist](docs/SUBMISSION_CHECKLIST.md)
+
+## Tech Stack
+
+- Frontend: React, Vite, CSS
+- Backend: FastAPI, SQLAlchemy, PostgreSQL/Neon
+- Agent/RAG: Groq, Voyage AI, Qdrant
+- Auth: JWT access token plus HttpOnly refresh cookie
+- Deployment: Vercel frontend, Render backend, Docker/Compose
+
+## Local Backend Setup
 
 ```powershell
 cd backend
@@ -18,28 +57,30 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Set `DATABASE_URL` in `backend/.env` to your Neon SQLAlchemy URL:
+Set the required values in `backend/.env`:
 
 ```text
-postgresql+psycopg://neondb_owner:...@ep-solitary-resonance-axl8ez05-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require
-```
-
-For the AI stack, add:
-
-```text
+DATABASE_URL=postgresql+psycopg://...
+JWT_SECRET_KEY=...
+FRONTEND_ORIGIN=http://localhost:5173
+BACKEND_ORIGIN=http://localhost:8000
 VOYAGE_API_KEY=...
-VOYAGE_EMBEDDING_MODEL=voyage-3-large
 QDRANT_URL=...
 QDRANT_API_KEY=...
-QDRANT_COLLECTION=parcelpilot_documents
 GROQ_API_KEY=...
-GROQ_MODEL=openai/gpt-oss-120b
 ```
 
-Import the workbook:
+Import the dataset:
 
 ```powershell
 python scripts/import_dataset.py
+python scripts/backfill_ticket_categories.py
+```
+
+Ingest documents after Qdrant/Voyage are configured:
+
+```powershell
+python scripts/ingest_documents.py
 ```
 
 Run the API:
@@ -48,15 +89,7 @@ Run the API:
 uvicorn app.main:app --reload
 ```
 
-The workbook stores `password_hash`, not plaintext passwords. At login, the backend hashes the submitted password and compares it to the stored hash. Role and account scope are checked only on the backend. In the current Neon development database, imported dataset users have been reset to the normal typed password `Demo@123`.
-
-For local development, set a known password for any dataset user:
-
-```powershell
-python scripts/set_user_password.py aarav@northstar.example Demo@123
-```
-
-## Frontend Setup
+## Local Frontend Setup
 
 ```powershell
 cd frontend
@@ -64,11 +97,16 @@ npm install
 npm run dev
 ```
 
-The app expects the API at `http://localhost:8000` by default. Override with `VITE_API_BASE_URL`.
+Set `frontend/.env`:
+
+```text
+VITE_BACKEND_ORIGIN=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8000
+```
 
 ## Docker Compose
 
-Use Compose for local full-stack testing. The backend reads `backend/.env`; the frontend is built as static files and served by nginx.
+Use Compose for local full-stack testing:
 
 ```powershell
 docker compose up --build
@@ -76,64 +114,71 @@ docker compose up --build
 
 Local URLs:
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8000`
-- Health: `http://localhost:8000/health`
-
-Do not commit real `.env` files. Keep Neon, Voyage, Qdrant, and Groq credentials only in local/hosting environment variables.
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8000
+- Health: http://localhost:8000/health
 
 ## Deployment
 
-### Backend on Render
+### Render Backend
 
-This repo includes `render.yaml` for a Docker web service using `backend/Dockerfile`.
+Use the root `Dockerfile` or configure Render with:
 
-Set these Render environment variables:
+```text
+Root Directory: backend
+Dockerfile Path: ./Dockerfile
+Docker Build Context Directory: .
+Docker Command: empty
+```
+
+Required Render env vars:
 
 ```text
 DATABASE_URL=postgresql+psycopg://...
 JWT_SECRET_KEY=...
 REFRESH_COOKIE_SECURE=true
-FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
-BACKEND_ORIGIN=https://your-render-service.onrender.com
+FRONTEND_ORIGIN=https://parcelpilot-beta.vercel.app
+BACKEND_ORIGIN=https://parcelpilot-m1ak.onrender.com
 VOYAGE_API_KEY=...
 QDRANT_URL=...
 QDRANT_API_KEY=...
 GROQ_API_KEY=...
 ```
 
-Render injects `PORT`; the Dockerfile starts Uvicorn with `${PORT:-8000}`.
+### Vercel Frontend
 
-### Frontend on Vercel
-
-This repo includes `vercel.json` for the Vite app in `frontend/`.
-
-Set this Vercel environment variable:
+Vercel settings:
 
 ```text
-VITE_API_BASE_URL=https://your-render-service.onrender.com
-VITE_BACKEND_ORIGIN=https://your-render-service.onrender.com
+Root Directory: frontend
+Install Command: npm ci
+Build Command: npm run build
+Output Directory: dist
 ```
 
-`VITE_API_BASE_URL` and `VITE_BACKEND_ORIGIN` can point to the same Render backend URL. The frontend client accepts either variable.
+Required Vercel env vars:
 
-After the Vercel URL is known, update Render `FRONTEND_ORIGIN` to that exact Vercel origin so CORS and refresh cookies work.
+```text
+VITE_BACKEND_ORIGIN=https://parcelpilot-m1ak.onrender.com
+VITE_API_BASE_URL=https://parcelpilot-m1ak.onrender.com
+```
 
-## Implemented So Far
+## Repo Organization
 
-- PostgreSQL schema for accounts, users, refresh tokens, orders, tickets, events, and escalations
-- Workbook import script for Neon/PostgreSQL
-- JWT login with short-lived access tokens
-- Rotating refresh token stored as a hashed DB record and raw HttpOnly cookie
-- Logout and `/auth/me`
-- Customer tenant isolation for order and ticket APIs
-- Support/admin cross-account access
-- Customer portal shell with Dashboard, Orders, and Tickets pages
-- Order detail view with shipment event timeline
-- Ticket creation and customer message posting
-- AI Support navigation placeholder for the next build step
-- AI provider adapters for Voyage embeddings, Qdrant document retrieval, and Groq chat completions
-- Auth-protected `/api/v1/ai/providers` configuration status endpoint
-- Persistent AI conversation/message tables with active order/ticket context
-- Auth-protected `/api/v1/ai/chat` endpoint with customer account isolation
-- Customer AI Support chat page connected to the backend endpoint
+```text
+backend/app/auth          Authentication and refresh-token flow
+backend/app/routers       API routers
+backend/app/models        SQLAlchemy models
+backend/app/ai            AI orchestration, providers, parsing, evidence, data access
+backend/app/tickets       Ticket classification helpers
+backend/scripts           Dataset import, document ingest, diagnostics
+frontend/src/customer     Customer portal components/pages/utils
+frontend/src/support      Support portal components/pages/utils
+frontend/src/api          API client
+frontend/src/auth         Auth provider/session restore
+docs                      Submission notes
+```
+
+## Notes
+
+Real `.env` files, API keys, local virtual environments, build output, and logs are intentionally ignored. The public repo should contain only examples and deployment instructions, not secrets.
