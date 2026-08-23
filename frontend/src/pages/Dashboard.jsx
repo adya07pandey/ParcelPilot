@@ -122,7 +122,7 @@ export default function Dashboard() {
               <User size={17} />
               <span>
                 <strong>{user.name}</strong>
-                <small>{user.company || user.account_id || "Customer account"}</small>
+                <small>{user.company || user.account_id || "Account"}</small>
               </span>
             </div>
             <button className="icon-button" onClick={logout} title="Sign out">

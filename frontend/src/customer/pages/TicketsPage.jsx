@@ -4,11 +4,37 @@ import { apiFetch } from "../../api/client";
 import Panel from "../components/Panel";
 import StatusBadge from "../components/StatusBadge";
 import { ticketCategoryOptions } from "../constants";
-import { cleanLabel, formatDateTime, sortTickets } from "../utils";
+import { cleanLabel, formatDateTime, formatOptionLabel, sortTickets, uniqueValues, withinDateRange } from "../utils";
 
 export function TicketsPage({ tickets, onCreated, onSelect }) {
   const [showForm, setShowForm] = useState(false);
-  const sortedTickets = useMemo(() => sortTickets(tickets), [tickets]);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("ALL");
+  const [subcategory, setSubcategory] = useState("ALL");
+  const [status, setStatus] = useState("ALL");
+  const [priority, setPriority] = useState("ALL");
+  const [dateRange, setDateRange] = useState("ALL");
+  const categoryOptions = useMemo(() => ["ALL", ...uniqueValues(tickets.map((ticket) => ticket.category))], [tickets]);
+  const subcategoryOptions = useMemo(() => ["ALL", ...uniqueValues(tickets.map((ticket) => ticket.subcategory))], [tickets]);
+  const statusOptions = useMemo(() => ["ALL", ...uniqueValues(tickets.map((ticket) => ticket.status))], [tickets]);
+  const priorityOptions = useMemo(() => ["ALL", ...uniqueValues(tickets.map((ticket) => ticket.priority))], [tickets]);
+  const filteredTickets = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return sortTickets(tickets)
+      .filter((ticket) => category === "ALL" || ticket.category === category)
+      .filter((ticket) => subcategory === "ALL" || ticket.subcategory === subcategory)
+      .filter((ticket) => status === "ALL" || ticket.status === status)
+      .filter((ticket) => priority === "ALL" || ticket.priority === priority)
+      .filter((ticket) => withinDateRange(ticket.last_customer_message_at || ticket.created_at, dateRange))
+      .filter((ticket) => {
+        if (!needle) return true;
+        return [ticket.ticket_id, ticket.subject, ticket.description, ticket.category, ticket.subcategory, ticket.status, ticket.priority]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(needle);
+      });
+  }, [tickets, query, category, subcategory, status, priority, dateRange]);
 
   return (
     <div className="page-stack">
@@ -32,8 +58,20 @@ export function TicketsPage({ tickets, onCreated, onSelect }) {
         />
       ) : null}
 
+      <section className="customer-filter-bar">
+        <label>
+          Search
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ticket, subject, status, issue" />
+        </label>
+        <FilterSelect label="Category" value={category} onChange={setCategory} options={categoryOptions} />
+        <FilterSelect label="Subcategory" value={subcategory} onChange={setSubcategory} options={subcategoryOptions} />
+        <FilterSelect label="Status" value={status} onChange={setStatus} options={statusOptions} />
+        <FilterSelect label="Priority" value={priority} onChange={setPriority} options={priorityOptions} />
+        <FilterSelect label="Updated" value={dateRange} onChange={setDateRange} options={["ALL", "TODAY", "LAST_7_DAYS", "LAST_30_DAYS"]} />
+      </section>
+
       <section className="ticket-list">
-        {sortedTickets.map((ticket) => (
+        {filteredTickets.map((ticket) => (
           <button className="ticket-card" key={ticket.ticket_id} onClick={() => onSelect(ticket.ticket_id)}>
             <div>
               <strong>{ticket.ticket_id}</strong>
@@ -51,6 +89,21 @@ export function TicketsPage({ tickets, onCreated, onSelect }) {
         ))}
       </section>
     </div>
+  );
+}
+
+function FilterSelect({ label, value, onChange, options }) {
+  return (
+    <label>
+      {label}
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {formatOptionLabel(option)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

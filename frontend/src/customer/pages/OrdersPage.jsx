@@ -1,9 +1,38 @@
 import { ArrowLeft } from "lucide-react";
+import { useMemo, useState } from "react";
 import Panel from "../components/Panel";
 import StatusBadge from "../components/StatusBadge";
-import { formatDateTime, formatMoney } from "../utils";
+import { formatDateTime, formatMoney, formatOptionLabel, sortOrders, uniqueValues, withinDateRange } from "../utils";
 
 export function OrdersPage({ orders, onSelect }) {
+  const [query, setQuery] = useState("");
+  const [carrier, setCarrier] = useState("ALL");
+  const [status, setStatus] = useState("ALL");
+  const [origin, setOrigin] = useState("ALL");
+  const [destination, setDestination] = useState("ALL");
+  const [dateRange, setDateRange] = useState("ALL");
+  const carrierOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.carrier))], [orders]);
+  const statusOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.status))], [orders]);
+  const originOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.origin))], [orders]);
+  const destinationOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.destination))], [orders]);
+  const filteredOrders = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return sortOrders(orders)
+      .filter((order) => carrier === "ALL" || order.carrier === carrier)
+      .filter((order) => status === "ALL" || order.status === status)
+      .filter((order) => origin === "ALL" || order.origin === origin)
+      .filter((order) => destination === "ALL" || order.destination === destination)
+      .filter((order) => withinDateRange(order.booked_at, dateRange))
+      .filter((order) => {
+        if (!needle) return true;
+        return [order.order_id, order.carrier, order.status, order.origin, order.destination, order.current_location]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(needle);
+      });
+  }, [orders, query, carrier, status, origin, destination, dateRange]);
+
   return (
     <div className="page-stack">
       <section className="toolbar-row">
@@ -11,7 +40,18 @@ export function OrdersPage({ orders, onSelect }) {
           <p className="eyebrow">Shipments</p>
           <h2>All Orders</h2>
         </div>
-        <span className="count-pill">{orders.length} visible</span>
+        <span className="count-pill">{filteredOrders.length} visible</span>
+      </section>
+      <section className="customer-filter-bar">
+        <label>
+          Search
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Order, carrier, city, status" />
+        </label>
+        <FilterSelect label="Carrier" value={carrier} onChange={setCarrier} options={carrierOptions} />
+        <FilterSelect label="Status" value={status} onChange={setStatus} options={statusOptions} />
+        <FilterSelect label="Origin" value={origin} onChange={setOrigin} options={originOptions} />
+        <FilterSelect label="Destination" value={destination} onChange={setDestination} options={destinationOptions} />
+        <FilterSelect label="Booked" value={dateRange} onChange={setDateRange} options={["ALL", "TODAY", "LAST_7_DAYS", "LAST_30_DAYS"]} />
       </section>
       <section className="table-wrap">
         <div className="table-scroll">
@@ -27,7 +67,7 @@ export function OrdersPage({ orders, onSelect }) {
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <tr className="clickable-row" key={order.order_id} onClick={() => onSelect(order.order_id)}>
                   <td>{order.order_id}</td>
                   <td>{order.carrier}</td>
@@ -44,6 +84,21 @@ export function OrdersPage({ orders, onSelect }) {
         </div>
       </section>
     </div>
+  );
+}
+
+function FilterSelect({ label, value, onChange, options }) {
+  return (
+    <label>
+      {label}
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {formatOptionLabel(option)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

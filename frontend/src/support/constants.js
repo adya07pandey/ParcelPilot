@@ -1,12 +1,13 @@
-import { ClipboardList, FileText, Home, Package, ShieldAlert, Ticket, Users } from "lucide-react";
+import { Bot, ClipboardList, FileText, Home, Package, ShieldAlert, Ticket, Users } from "lucide-react";
 
 export const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: Home },
   { key: "tickets", label: "Tickets", icon: Ticket },
   { key: "issues", label: "Issues & Incidents", icon: ShieldAlert },
-  { key: "customers", label: "Customers", icon: Users },
+  { key: "customers", label: "Companies", icon: Users },
   { key: "orders", label: "Orders", icon: Package },
-  { key: "policies", label: "Policies & Agreements", icon: FileText }
+  { key: "policies", label: "Policies & Agreements", icon: FileText },
+  { key: "ai-support", label: "AI Support", icon: Bot }
 ];
 
 export const SUPPORT_BRAND_ICON = ClipboardList;

@@ -15,11 +15,15 @@ export function SelectFilter({ label, value, onChange, options }) {
     <label className="support-filter">
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {formatOptionLabel(option)}
-          </option>
-        ))}
+        {options.map((option) => {
+          const optionValue = typeof option === "object" ? option.value : option;
+          const optionLabel = typeof option === "object" ? option.label : formatOptionLabel(option);
+          return (
+            <option key={optionValue} value={optionValue}>
+              {optionLabel}
+            </option>
+          );
+        })}
       </select>
     </label>
   );

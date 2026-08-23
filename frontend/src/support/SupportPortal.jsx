@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Bot,
   LogOut
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -11,7 +12,9 @@ import PageHeader from "./components/PageHeader";
 import Panel from "./components/Panel";
 import { NAV_ITEMS, orderStatusRank, priorityRank, SUPPORT_BRAND_ICON } from "./constants";
 import { supportApi } from "./supportApi";
+import InvestigationPage from "./pages/InvestigationPage";
 import {
+  formatOptionLabel,
   formatDate,
   formatTime,
   readSupportView,
@@ -26,7 +29,8 @@ const BrandIcon = SUPPORT_BRAND_ICON;
 export default function SupportPortal() {
   const { user, logout } = useAuth();
   const initialView = useMemo(() => readSupportView(), []);
-  const [activePage, setActivePage] = useState(initialView.activePage || "dashboard");
+  const initialPage = NAV_ITEMS.some((item) => item.key === initialView.activePage) ? initialView.activePage : "dashboard";
+  const [activePage, setActivePage] = useState(initialPage);
   const [overview, setOverview] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -39,6 +43,7 @@ export default function SupportPortal() {
   const [selectedTicketId, setSelectedTicketId] = useState(initialView.selectedTicketId || null);
   const [selectedCustomerId, setSelectedCustomerId] = useState(initialView.selectedCustomerId || null);
   const [selectedOrderId, setSelectedOrderId] = useState(initialView.selectedOrderId || null);
+  const [investigationSeed, setInvestigationSeed] = useState(initialView.investigationSeed || null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -49,14 +54,15 @@ export default function SupportPortal() {
   useEffect(() => {
     localStorage.setItem(
       SUPPORT_VIEW_KEY,
-      JSON.stringify({
-        activePage,
-        selectedTicketId,
-        selectedCustomerId,
-        selectedOrderId
-      })
-    );
-  }, [activePage, selectedTicketId, selectedCustomerId, selectedOrderId]);
+        JSON.stringify({
+          activePage,
+          selectedTicketId,
+          selectedCustomerId,
+          selectedOrderId,
+          investigationSeed
+        })
+      );
+  }, [activePage, selectedTicketId, selectedCustomerId, selectedOrderId, investigationSeed]);
 
   useEffect(() => {
     if (activePage === "ticket-detail" && selectedTicketId) {
@@ -76,6 +82,15 @@ export default function SupportPortal() {
     setSelectedTicketId(null);
     setSelectedCustomerId(null);
     setSelectedOrderId(null);
+    setInvestigationSeed(null);
+  }
+
+  function openInvestigation(seed = null) {
+    setInvestigationSeed(seed);
+  }
+
+  function closeInvestigation() {
+    setInvestigationSeed(null);
   }
 
   async function loadWorkspace() {
@@ -161,7 +176,7 @@ export default function SupportPortal() {
             return (
               <button
                 key={item.key}
-                className={activePage === item.key ? "active" : ""}
+                className={activeNavKey(activePage) === item.key ? "active" : ""}
                 onClick={() => navigate(item.key)}
                 title={item.label}
               >
@@ -187,21 +202,25 @@ export default function SupportPortal() {
           <div className="support-loading">Loading support workspace...</div>
         ) : (
           <>
-            {activePage === "dashboard" ? <DashboardView overview={overview} openTicket={openTicket} /> : null}
+            {activePage === "dashboard" ? <DashboardView overview={overview} tickets={tickets} openTicket={openTicket} openInvestigation={openInvestigation} /> : null}
             {activePage === "tickets" ? <TicketsView tickets={tickets} openTicket={openTicket} /> : null}
             {activePage === "ticket-detail" ? (
-              <TicketDetail ticket={selectedTicket} openCustomer={openCustomer} openOrder={openOrder} />
+              <TicketDetail ticket={selectedTicket} openCustomer={openCustomer} openOrder={openOrder} openInvestigation={openInvestigation} />
             ) : null}
             {activePage === "customers" ? <CustomersView customers={customers} openCustomer={openCustomer} /> : null}
             {activePage === "customer-detail" ? (
-              <CustomerDetail data={selectedCustomer} openTicket={openTicket} openOrder={openOrder} />
+              <CustomerDetail data={selectedCustomer} openTicket={openTicket} openOrder={openOrder} openInvestigation={openInvestigation} />
             ) : null}
-            {activePage === "orders" ? <OrdersView orders={orders} openOrder={openOrder} /> : null}
+            {activePage === "orders" ? <OrdersView orders={orders} openOrder={openOrder} openInvestigation={openInvestigation} /> : null}
             {activePage === "order-detail" ? (
-              <OrderDetail order={selectedOrder} openTicket={openTicket} openCustomer={openCustomer} />
+              <OrderDetail order={selectedOrder} openTicket={openTicket} openCustomer={openCustomer} openInvestigation={openInvestigation} />
             ) : null}
             {activePage === "policies" ? <PoliciesView policies={policies} /> : null}
-            {activePage === "issues" ? <IssuesView issues={issues} openTicket={openTicket} /> : null}
+            {activePage === "issues" ? <IssuesView issues={issues} openTicket={openTicket} openInvestigation={openInvestigation} /> : null}
+            {activePage === "ai-support" ? <InvestigationPage customers={customers} /> : null}
+            {investigationSeed ? (
+              <EmbeddedInvestigation customers={customers} seed={investigationSeed} onClose={closeInvestigation} />
+            ) : null}
           </>
         )}
       </section>
@@ -209,17 +228,36 @@ export default function SupportPortal() {
   );
 }
 
-function DashboardView({ overview, openTicket }) {
+function activeNavKey(activePage) {
+  if (activePage === "ticket-detail") return "tickets";
+  if (activePage === "customer-detail") return "customers";
+  if (activePage === "order-detail") return "orders";
+  return activePage;
+}
+
+function DashboardView({ overview, tickets, openTicket, openInvestigation }) {
   const kpis = overview?.kpis || {};
+  const priorityCounts = useMemo(
+    () =>
+      tickets.reduce(
+        (counts, ticket) => {
+          counts[ticket.priority] = (counts[ticket.priority] || 0) + 1;
+          return counts;
+        },
+        { HIGH: 0, MEDIUM: 0, LOW: 0 }
+      ),
+    [tickets]
+  );
   return (
     <section>
       <PageHeader title="Dashboard" subtitle="What needs attention right now" />
       <div className="support-kpis">
         <Kpi label="Open Tickets" value={kpis.open_tickets} />
-        <Kpi label="High Priority" value={kpis.high_priority} tone="danger" />
+        <Kpi label="P1 / High" value={priorityCounts.HIGH} tone="danger" />
+        <Kpi label="P2 / Medium" value={priorityCounts.MEDIUM} tone="warning" />
+        <Kpi label="P3 / Low" value={priorityCounts.LOW} />
         <Kpi label="SLA At Risk" value={kpis.sla_at_risk} tone="warning" />
         <Kpi label="SLA Breached" value={kpis.sla_breached} tone="danger" />
-        <Kpi label="Unassigned" value={kpis.unassigned} />
       </div>
       <div className="support-grid two">
         <Panel title="Priority Queue">
@@ -242,8 +280,12 @@ function TicketsView({ tickets, openTicket }) {
   const [status, setStatus] = useState("ALL");
   const [source, setSource] = useState("ALL");
   const [company, setCompany] = useState("ALL");
+  const [category, setCategory] = useState("ALL");
+  const [subcategory, setSubcategory] = useState("ALL");
   const [dateRange, setDateRange] = useState("ALL");
   const companyOptions = useMemo(() => ["ALL", ...uniqueValues(tickets.map((ticket) => ticket.account_name))], [tickets]);
+  const categoryOptions = useMemo(() => ["ALL", ...uniqueValues(tickets.map((ticket) => ticket.category))], [tickets]);
+  const subcategoryOptions = useMemo(() => ["ALL", ...uniqueValues(tickets.map((ticket) => ticket.subcategory))], [tickets]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return tickets
@@ -251,6 +293,8 @@ function TicketsView({ tickets, openTicket }) {
       .filter((ticket) => status === "ALL" || ticket.status === status)
       .filter((ticket) => source === "ALL" || ticket.source === source)
       .filter((ticket) => company === "ALL" || ticket.account_name === company)
+      .filter((ticket) => category === "ALL" || ticket.category === category)
+      .filter((ticket) => subcategory === "ALL" || ticket.subcategory === subcategory)
       .filter((ticket) => withinDateRange(ticket.created_at, dateRange))
       .filter((ticket) => {
         if (!needle) return true;
@@ -258,6 +302,8 @@ function TicketsView({ tickets, openTicket }) {
           ticket.ticket_id,
           ticket.subject,
           ticket.account_name,
+          ticket.category,
+          ticket.subcategory,
           ticket.linked_order_id,
           ticket.description,
           ticket.assigned_to
@@ -272,16 +318,18 @@ function TicketsView({ tickets, openTicket }) {
         if (priorityDelta !== 0) return priorityDelta;
         return new Date(b.created_at || 0) - new Date(a.created_at || 0);
       });
-  }, [tickets, query, priority, status, source, company, dateRange]);
+  }, [tickets, query, priority, status, source, company, category, subcategory, dateRange]);
 
   return (
     <section>
       <PageHeader title="Tickets" subtitle="Main support queue" />
       <div className="support-toolbar">
-        <SearchBox value={query} onChange={setQuery} placeholder="Search ticket, order, customer, issue" />
+        <SearchBox value={query} onChange={setQuery} placeholder="Search ticket, order, company, issue" />
         <SelectFilter label="Priority" value={priority} onChange={setPriority} options={["ALL", "HIGH", "MEDIUM", "LOW"]} />
         <SelectFilter label="Status" value={status} onChange={setStatus} options={["ALL", "OPEN", "IN_PROGRESS", "WAITING_FOR_CUSTOMER", "RESOLVED"]} />
         <SelectFilter label="Company" value={company} onChange={setCompany} options={companyOptions} />
+        <SelectFilter label="Category" value={category} onChange={setCategory} options={categoryOptions} />
+        <SelectFilter label="Subcategory" value={subcategory} onChange={setSubcategory} options={subcategoryOptions} />
         <SelectFilter label="Date" value={dateRange} onChange={setDateRange} options={["ALL", "TODAY", "LAST_7_DAYS", "LAST_30_DAYS"]} />
         <SelectFilter label="Source" value={source} onChange={setSource} options={["ALL", "AI Support", "Customer Portal", "Email", "Chat", "Internal"]} />
       </div>
@@ -307,7 +355,7 @@ function TicketsView({ tickets, openTicket }) {
   );
 }
 
-function TicketDetail({ ticket, openCustomer, openOrder }) {
+function TicketDetail({ ticket, openCustomer, openOrder, openInvestigation }) {
   if (!ticket) return <div className="support-loading">Loading ticket...</div>;
   return (
     <section>
@@ -331,10 +379,10 @@ function TicketDetail({ ticket, openCustomer, openOrder }) {
           <div className="support-actions">
             <button>Assign to me</button>
             <button>Mark in progress</button>
-            <button>Waiting for customer</button>
+            <button>Waiting for company</button>
           </div>
         </Panel>
-        <Panel title="Customer">
+        <Panel title="Company">
           {ticket.account ? (
             <button className="support-link-card" onClick={() => openCustomer(ticket.account.account_id)}>
               <strong>{ticket.account.account_name}</strong>
@@ -342,7 +390,7 @@ function TicketDetail({ ticket, openCustomer, openOrder }) {
               <span>CSM: {ticket.account.csm || "Not assigned"}</span>
             </button>
           ) : (
-            <EmptyState text="No customer context found." />
+            <EmptyState text="No company context found." />
           )}
         </Panel>
         <Panel title="Issue">
@@ -356,10 +404,17 @@ function TicketDetail({ ticket, openCustomer, openOrder }) {
           </div>
         </Panel>
         <Panel title="AI Investigation">
-          <button className="primary-action">Investigate</button>
-          <p className="muted">
-            Part 1 keeps this as a workspace action. The deeper AI investigation flow comes next.
-          </p>
+          <button
+            className="primary-action"
+            onClick={() => openInvestigation({
+              account_id: ticket.account_id,
+              question: ticket.description || ticket.subject || `Investigate ${ticket.ticket_id}`
+            })}
+          >
+            <Bot size={18} />
+            Investigate
+          </button>
+          <p className="muted">Opens the support AI with this company account and issue already in context.</p>
         </Panel>
         <Panel title="Linked Order">
           {ticket.linked_order ? (
@@ -396,7 +451,7 @@ function CustomersView({ customers, openCustomer }) {
   );
   return (
     <section>
-      <PageHeader title="Customers" subtitle="Account directory" />
+      <PageHeader title="Companies" subtitle="Company account directory" />
       <div className="support-toolbar">
         <SearchBox value={query} onChange={setQuery} placeholder="Search Northstar, LumenWorks, Beacon" />
       </div>
@@ -420,12 +475,12 @@ function CustomersView({ customers, openCustomer }) {
   );
 }
 
-function CustomerDetail({ data, openTicket, openOrder }) {
-  if (!data) return <div className="support-loading">Loading customer...</div>;
+function CustomerDetail({ data, openTicket, openOrder, openInvestigation }) {
+  if (!data) return <div className="support-loading">Loading company...</div>;
   const { account, orders, tickets, agreement } = data;
   return (
     <section>
-      <PageHeader title={account.account_name} subtitle="Customer 360" />
+      <PageHeader title={account.account_name} subtitle="Company 360" />
       <div className="support-detail-grid">
         <Panel title="Overview">
           <div className="support-fields">
@@ -443,6 +498,18 @@ function CustomerDetail({ data, openTicket, openOrder }) {
             <Field label="Cancellation" value={agreement.terms.cancellation} />
             <Field label="Service credits" value={agreement.terms.service_credits} />
           </div>
+        </Panel>
+        <Panel title="AI Investigation">
+          <button
+            className="primary-action"
+            onClick={() => openInvestigation({
+              account_id: account.account_id,
+              question: `Investigate account ${account.account_name} and summarize current support risk.`
+            })}
+          >
+            <Bot size={18} />
+            Investigate Account
+          </button>
         </Panel>
       </div>
       <div className="support-grid two">
@@ -477,21 +544,27 @@ function CustomerDetail({ data, openTicket, openOrder }) {
   );
 }
 
-function OrdersView({ orders, openOrder }) {
+function OrdersView({ orders, openOrder, openInvestigation }) {
   const [query, setQuery] = useState("");
   const [company, setCompany] = useState("ALL");
   const [carrier, setCarrier] = useState("ALL");
   const [status, setStatus] = useState("ALL");
+  const [origin, setOrigin] = useState("ALL");
+  const [destination, setDestination] = useState("ALL");
   const [dateRange, setDateRange] = useState("ALL");
   const companyOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.account_name))], [orders]);
   const carrierOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.carrier))], [orders]);
   const statusOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.status))], [orders]);
+  const originOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.origin))], [orders]);
+  const destinationOptions = useMemo(() => ["ALL", ...uniqueValues(orders.map((order) => order.destination))], [orders]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return orders
       .filter((order) => company === "ALL" || order.account_name === company)
       .filter((order) => carrier === "ALL" || order.carrier === carrier)
       .filter((order) => status === "ALL" || order.status === status)
+      .filter((order) => origin === "ALL" || order.origin === origin)
+      .filter((order) => destination === "ALL" || order.destination === destination)
       .filter((order) => withinDateRange(order.booked_at, dateRange))
       .filter((order) => {
         if (!needle) return true;
@@ -508,7 +581,7 @@ function OrdersView({ orders, openOrder }) {
         if (statusDelta !== 0) return statusDelta;
         return new Date(b.booked_at || 0) - new Date(a.booked_at || 0);
       });
-  }, [orders, query, company, carrier, status, dateRange]);
+  }, [orders, query, company, carrier, status, origin, destination, dateRange]);
   return (
     <section>
       <PageHeader title="Orders" subtitle="Shipment investigation" />
@@ -517,6 +590,8 @@ function OrdersView({ orders, openOrder }) {
         <SelectFilter label="Company" value={company} onChange={setCompany} options={companyOptions} />
         <SelectFilter label="Carrier" value={carrier} onChange={setCarrier} options={carrierOptions} />
         <SelectFilter label="Status" value={status} onChange={setStatus} options={statusOptions} />
+        <SelectFilter label="Origin" value={origin} onChange={setOrigin} options={originOptions} />
+        <SelectFilter label="Destination" value={destination} onChange={setDestination} options={destinationOptions} />
         <SelectFilter label="Booked Date" value={dateRange} onChange={setDateRange} options={["ALL", "TODAY", "LAST_7_DAYS", "LAST_30_DAYS"]} />
       </div>
       <DataTable
@@ -535,11 +610,22 @@ function OrdersView({ orders, openOrder }) {
           ]
         }))}
       />
+      <Panel title="AI Investigation">
+        <button
+          className="primary-action"
+          onClick={() => openInvestigation({
+            question: "Investigate the current shipment risk and explain any delay."
+          })}
+        >
+          <Bot size={18} />
+          Investigate Shipments
+        </button>
+      </Panel>
     </section>
   );
 }
 
-function OrderDetail({ order, openTicket, openCustomer }) {
+function OrderDetail({ order, openTicket, openCustomer, openInvestigation }) {
   if (!order) return <div className="support-loading">Loading order...</div>;
   return (
     <section>
@@ -561,7 +647,7 @@ function OrderDetail({ order, openTicket, openCustomer }) {
             <Field label="Shipment fee" value={order.shipment_fee_inr ? `INR ${order.shipment_fee_inr}` : "Not set"} />
           </div>
           {order.account ? (
-            <button className="primary-action" onClick={() => openCustomer(order.account.account_id)}>Open Customer</button>
+            <button className="primary-action" onClick={() => openCustomer(order.account.account_id)}>Open Company</button>
           ) : null}
         </Panel>
         <Panel title="Related Tickets">
@@ -589,6 +675,18 @@ function OrderDetail({ order, openTicket, openCustomer }) {
             )}
           />
         </Panel>
+        <Panel title="AI Investigation">
+          <button
+            className="primary-action"
+            onClick={() => openInvestigation({
+              account_id: order.account_id,
+              question: `Investigate order ${order.order_id} and explain the current shipment state.`
+            })}
+          >
+            <Bot size={18} />
+            Investigate Order
+          </button>
+        </Panel>
       </div>
       <Panel title="Timeline">
         <Timeline events={order.events || []} />
@@ -598,14 +696,43 @@ function OrderDetail({ order, openTicket, openCustomer }) {
 }
 
 function PoliciesView({ policies }) {
+  const [query, setQuery] = useState("");
   if (!policies) return <div className="support-loading">Loading policies...</div>;
+  const needle = query.trim().toLowerCase();
+  const generalPolicies = policies.general_policies.filter((policy) =>
+    [policy.name, policy.type, policy.status, policy.effective, policy.summary]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(needle)
+  );
+  const agreements = policies.customer_agreements.filter((agreement) =>
+    [
+      agreement.account_id,
+      agreement.account_name,
+      agreement.status,
+      agreement.document,
+      agreement.plan,
+      agreement.terms?.support,
+      agreement.terms?.cancellation,
+      agreement.terms?.service_credits,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(needle)
+  );
   return (
     <section>
-      <PageHeader title="Policies & Agreements" subtitle="Authoritative rules and customer overrides" />
+      <PageHeader title="Policies & Agreements" subtitle="Authoritative rules and company overrides" />
+      <div className="support-toolbar">
+        <SearchBox value={query} onChange={setQuery} placeholder="Search policy, agreement, company, effective date" />
+      </div>
       <div className="support-grid two">
         <Panel title="General Policies">
           <MiniList
-            items={policies.general_policies}
+            items={generalPolicies}
+            empty="No matching policies."
             render={(policy) => (
               <div key={policy.document_id} className="policy-row">
                 <strong>{policy.name}</strong>
@@ -615,9 +742,10 @@ function PoliciesView({ policies }) {
             )}
           />
         </Panel>
-        <Panel title="Customer Agreements">
+        <Panel title="Company Agreements">
           <MiniList
-            items={policies.customer_agreements}
+            items={agreements}
+            empty="No matching agreements."
             render={(agreement) => (
               <div key={agreement.account_id} className="policy-row">
                 <strong>{agreement.account_name}</strong>
@@ -635,7 +763,7 @@ function PoliciesView({ policies }) {
             <span>{policies.override_example.general_policy}</span>
           </div>
           <div>
-            <strong>Customer agreement</strong>
+            <strong>Company agreement</strong>
             <span>{policies.override_example.customer_agreement}</span>
           </div>
           <div className="override-result">
@@ -648,10 +776,36 @@ function PoliciesView({ policies }) {
   );
 }
 
-function IssuesView({ issues, openTicket }) {
+function EmbeddedInvestigation({ customers, seed, onClose }) {
+  return (
+    <section className="embedded-investigation">
+      <div className="embedded-investigation-header">
+        <div>
+          <p className="muted">Embedded workspace</p>
+          <h2>AI Investigation</h2>
+        </div>
+        <button className="support-close-button" onClick={onClose}>Close</button>
+      </div>
+      <InvestigationPage customers={customers} seed={seed} embedded />
+    </section>
+  );
+}
+
+function IssuesView({ issues, openTicket, openInvestigation }) {
   return (
     <section>
       <PageHeader title="Issues & Incidents" subtitle="Detected ticket patterns" />
+      <Panel title="AI Investigation">
+        <button
+          className="primary-action"
+          onClick={() => openInvestigation({
+            question: "Investigate the recurring incident pattern and summarize root cause signals."
+          })}
+        >
+          <Bot size={18} />
+          Start Proactive Investigation
+        </button>
+      </Panel>
       <IssueGrid issues={issues} openTicket={openTicket} />
     </section>
   );
@@ -694,7 +848,7 @@ function IssueGrid({ issues, openTicket }) {
             {issue.severity}
           </span>
           <h3>{issue.name}</h3>
-          <p>{issue.ticket_count} tickets · {issue.customer_count} customers</p>
+          <p>{issue.ticket_count} tickets · {issue.customer_count} companies</p>
           <small>Latest: {formatDate(issue.latest_at)}</small>
           {openTicket && issue.ticket_ids?.length ? (
             <button onClick={() => openTicket(issue.ticket_ids[0])}>View Related Tickets</button>

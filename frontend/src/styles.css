@@ -322,12 +322,44 @@ button:disabled {
 
 .panel,
 .table-wrap,
-.form-panel {
+.form-panel,
+.customer-filter-bar {
   min-width: 0;
   border: 1px solid #d9dfdb;
   border-radius: 8px;
   background: white;
   padding: 18px;
+}
+
+.customer-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.customer-filter-bar label {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+  color: #5d6963;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.customer-filter-bar label:first-child {
+  flex: 1 1 260px;
+}
+
+.customer-filter-bar input,
+.customer-filter-bar select {
+  height: 40px;
+  border: 1px solid #cfd8d2;
+  border-radius: 8px;
+  padding: 0 11px;
+  background: #ffffff;
+  color: #17251f;
+  font: inherit;
 }
 
 .panel-header {

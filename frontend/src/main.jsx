@@ -8,6 +8,7 @@ import "./styles.css";
 
 function App() {
   const { user, loading } = useAuth();
+  const role = String(user?.role || "").toUpperCase();
   if (loading) {
     return (
       <main className="login-shell">
@@ -21,7 +22,7 @@ function App() {
   if (!user) {
     return <Login />;
   }
-  if (user.role === "SUPPORT" || user.role === "ADMIN") {
+  if (role === "SUPPORT" || role === "ADMIN") {
     return <SupportPortal />;
   }
   return <Dashboard />;
