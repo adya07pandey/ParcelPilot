@@ -1,0 +1,17 @@
+.env
+.env.local
+.env.*.local
+!.env.example
+!**/.env.example
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+vite.log
+*.log
+parcelpilot.db
+backend/.env
+backend/parcelpilot.db
+frontend/node_modules/
+frontend/dist/

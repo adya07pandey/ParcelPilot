@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: parcelpilot-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_MINUTES
+        value: 15
+      - key: REFRESH_TOKEN_DAYS
+        value: 14
+      - key: REFRESH_COOKIE_SECURE
+        value: true
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: VOYAGE_EMBEDDING_MODEL
+        value: voyage-3-large
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: parcelpilot_documents
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: DATASET_SNAPSHOT_TIME
+        value: 2026-08-16 11:00 Asia/Kolkata
