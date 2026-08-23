@@ -13,6 +13,7 @@ from app.auth.dependencies import require_roles
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.models import Account, AgentConversation, AgentMessage, Order, Role, ShipmentEvent, Ticket, User
+from app.support.documents import agreement_record_for_account, general_policy_records
 from app.support.investigation import run_support_investigation
 
 router = APIRouter(prefix="/support", tags=["support"])
@@ -394,7 +395,7 @@ def order_detail(order_id: str, _: User = SUPPORT_USER, db: Session = Depends(ge
 def policies(_: User = SUPPORT_USER, db: Session = Depends(get_db)) -> dict:
     agreements = [agreement_for_account(account) for account in db.scalars(select(Account).order_by(Account.account_name)).all()]
     return {
-        "general_policies": POLICIES,
+        "general_policies": general_policy_records(),
         "customer_agreements": agreements,
         "override_example": {
             "general_policy": "BOOKED shipments after 30 minutes may receive a INR 250 cancellation fee.",
@@ -422,37 +423,7 @@ def investigate(payload: InvestigationRequest, current_user: User = SUPPORT_USER
 
 
 def agreement_for_account(account: Account) -> dict:
-    name = account.account_name or account.account_id
-    lower_name = name.lower()
-    if "northstar" in lower_name:
-        terms = {
-            "support": "HIGH: 15 minutes, MEDIUM: 1 hour, LOW: 8 business hours",
-            "cancellation": "BOOKED before pickup: INR 0",
-            "service_credits": "Monthly cap: INR 5,000",
-            "override": "Enterprise agreement overrides generic cancellation fee rules.",
-        }
-    elif "lumen" in lower_name:
-        terms = {
-            "support": "Standard business support coverage",
-            "cancellation": "Customer agreement terms apply where specified.",
-            "service_credits": "See signed service agreement.",
-            "override": "Agreement terms override general policy only when explicit.",
-        }
-    else:
-        terms = {
-            "support": "General support policy applies",
-            "cancellation": "General Cancellation & Service Credit SOP applies",
-            "service_credits": "General SOP eligibility and caps apply",
-            "override": "No known customer-specific override.",
-        }
-    return {
-        "account_id": account.account_id,
-        "account_name": account.account_name,
-        "status": "ACTIVE" if account.status == "ACTIVE" else account.status,
-        "document": account.contract_file,
-        "plan": account.plan,
-        "terms": terms,
-    }
+    return agreement_record_for_account(account)
 
 
 def applicable_policies(account: Account | None) -> list[dict]:

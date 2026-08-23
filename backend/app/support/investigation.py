@@ -8,6 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Account, Order, Ticket, User
+from app.support.documents import agreement_records_for_accounts, general_policy_records
 
 ORDER_PATTERN = re.compile(r"\b(?:ORD[-\s]?)?(\d{3,})\b", re.IGNORECASE)
 
@@ -169,23 +170,27 @@ def extract_order_id(text: str) -> str | None:
 def build_sources(accounts: list[Account], orders: list[Order], tickets: list[Ticket], question: str) -> list[dict]:
     selected = []
     terms = set(tokenize(question))
+    policy_records = {record["document_id"]: record for record in general_policy_records()}
     for source in GLOBAL_SOURCES:
         if terms & source["topics"]:
-            selected.append(source)
+            selected.append({**source, **policy_records.get(source["id"], {})})
     if not selected:
-        selected = GLOBAL_SOURCES
-    for account in accounts:
-        if account.contract_file:
-            selected.append(
-                {
-                    "id": account.contract_file,
-                    "label": f"{account.account_name} Agreement",
-                    "type": "customer_agreement",
-                    "status": "ACTIVE",
-                    "authority": 4,
-                    "account_id": account.account_id,
-                }
-            )
+        selected = [{**source, **policy_records.get(source["id"], {})} for source in GLOBAL_SOURCES]
+    for agreement in agreement_records_for_accounts(accounts):
+        selected.append(
+            {
+                "id": agreement["document_id"],
+                "label": agreement["name"],
+                "type": "customer_agreement",
+                "status": agreement["status"],
+                "authority": agreement["authority"],
+                "account_id": agreement["account_id"],
+                "source_file": agreement["source_file"],
+                "summary": agreement["summary"],
+                "terms": agreement["terms"],
+                "excerpt": agreement["excerpt"],
+            }
+        )
     if tickets:
         selected.append(
             {
@@ -251,10 +256,10 @@ def build_answer(
     ]
     agreement_accounts = [account for account in accounts if account.contract_file]
     if agreement_accounts:
-        agreement_text = ", ".join(
-            f"**{account.account_name}** ({account.contract_file})" for account in agreement_accounts
-        )
+        agreements = agreement_records_for_accounts(agreement_accounts)
+        agreement_text = ", ".join(f"**{item['account_name']}** ({item['source_file']})" for item in agreements)
         lines.append(f"- Company agreement evidence available: {agreement_text}.")
+        lines.extend(build_agreement_lines(agreements))
     if orders:
         order = orders[0]
         lines.append(f"- Most relevant order: **{order.order_id}** ({order.carrier}, {clean_label(order.status)}).")
@@ -290,6 +295,25 @@ def build_answer(
         ]
     )
     return "\n".join(lines)
+
+
+def build_agreement_lines(agreements: list[dict]) -> list[str]:
+    if not agreements:
+        return []
+    if len(agreements) > 1:
+        return [
+            "- Multiple company agreements are in scope; select one company for exact contract terms, or ask using the company name.",
+        ]
+    agreement = agreements[0]
+    terms = agreement.get("terms", {})
+    return [
+        "",
+        "### Contract Terms",
+        f"- Support: {terms.get('support', 'Not available')}",
+        f"- Cancellation: {terms.get('cancellation', 'Not available')}",
+        f"- Service credits: {terms.get('service_credits', 'Not available')}",
+        f"- Override rule: {terms.get('override', 'Not available')}",
+    ]
 
 
 def find_similar_tickets(tickets: list[Ticket], question: str) -> list[dict]:

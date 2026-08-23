@@ -750,7 +750,9 @@ function PoliciesView({ policies }) {
               <div key={agreement.account_id} className="policy-row">
                 <strong>{agreement.account_name}</strong>
                 <span>{agreement.status} · {agreement.document || "No file"}</span>
-                <small>{agreement.terms.cancellation}</small>
+                <small>Support: {agreement.terms.support}</small>
+                <small>Cancellation: {agreement.terms.cancellation}</small>
+                <small>Service credits: {agreement.terms.service_credits}</small>
               </div>
             )}
           />
