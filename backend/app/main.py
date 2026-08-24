@@ -42,6 +42,13 @@ async def request_context(request: Request, call_next):
 def create_tables() -> None:
     Base.metadata.create_all(bind=engine)
 
+@app.get("/")
+def root() -> dict[str, str]:
+    return {
+        "service": "ParcelPilot API",
+        "status": "running",
+    }
+
 
 @app.get("/health")
 def health() -> dict[str, str]:

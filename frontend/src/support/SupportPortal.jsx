@@ -697,6 +697,7 @@ function OrderDetail({ order, openTicket, openCustomer, openInvestigation }) {
 
 function PoliciesView({ policies }) {
   const [query, setQuery] = useState("");
+  const [selectedPolicy, setSelectedPolicy] = useState(null);
   if (!policies) return <div className="support-loading">Loading policies...</div>;
   const needle = query.trim().toLowerCase();
   const generalPolicies = policies.general_policies.filter((policy) =>
@@ -734,11 +735,13 @@ function PoliciesView({ policies }) {
             items={generalPolicies}
             empty="No matching policies."
             render={(policy) => (
-              <div key={policy.document_id} className="policy-row">
-                <strong>{policy.name}</strong>
-                <span>{policy.status} · Effective {policy.effective}</span>
-                <small>{policy.summary}</small>
-              </div>
+              <button key={policy.document_id} className="policy-row policy-row-button" onClick={() => setSelectedPolicy(policy)}>
+                <div>
+                  <strong>{policy.name}</strong>
+                  <span>{policy.status} · Effective {policy.effective}</span>
+                </div>
+                <small>View</small>
+              </button>
             )}
           />
         </Panel>
@@ -747,13 +750,13 @@ function PoliciesView({ policies }) {
             items={agreements}
             empty="No matching agreements."
             render={(agreement) => (
-              <div key={agreement.account_id} className="policy-row">
-                <strong>{agreement.account_name}</strong>
-                <span>{agreement.status} · {agreement.document || "No file"}</span>
-                <small>Support: {agreement.terms.support}</small>
-                <small>Cancellation: {agreement.terms.cancellation}</small>
-                <small>Service credits: {agreement.terms.service_credits}</small>
-              </div>
+              <button key={agreement.account_id} className="policy-row policy-row-button" onClick={() => setSelectedPolicy(agreement)}>
+                <div>
+                  <strong>{agreement.account_name}</strong>
+                  <span>{agreement.status} · {agreement.document || "No file"}</span>
+                </div>
+                <small>View</small>
+              </button>
             )}
           />
         </Panel>
@@ -774,7 +777,55 @@ function PoliciesView({ policies }) {
           </div>
         </div>
       </Panel>
+      {selectedPolicy ? <PolicyDetailBox policy={selectedPolicy} onClose={() => setSelectedPolicy(null)} /> : null}
     </section>
+  );
+}
+
+function PolicyDetailBox({ policy, onClose }) {
+  const terms = policy.terms || {};
+  const title = policy.account_name || policy.name || policy.document_id;
+  return (
+    <div className="support-modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="policy-detail-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="support-modal-header">
+          <div>
+            <p className="muted">{policy.type || policy.document_type || "Policy"}</p>
+            <h2 id="policy-detail-title">{title}</h2>
+          </div>
+          <button className="support-close-button" onClick={onClose}>Close</button>
+        </div>
+        <div className="support-fields">
+          <Field label="Status" value={policy.status} />
+          <Field label="Effective" value={policy.effective || "Not available"} />
+          <Field label="Source" value={policy.document || policy.source_file || policy.document_id} />
+          {policy.plan ? <Field label="Plan" value={policy.plan} /> : null}
+        </div>
+        <div className="policy-detail-sections">
+          {policy.summary ? (
+            <section>
+              <h3>Summary</h3>
+              <p>{policy.summary}</p>
+            </section>
+          ) : null}
+          <section>
+            <h3>Terms</h3>
+            <div className="support-fields">
+              <Field label="Support" value={terms.support || "Not covered in this document"} />
+              <Field label="Cancellation" value={terms.cancellation || "Not covered in this document"} />
+              <Field label="Service credits" value={terms.service_credits || "Not covered in this document"} />
+              <Field label="Override" value={terms.override || "Not available"} />
+            </div>
+          </section>
+          {policy.excerpt ? (
+            <section>
+              <h3>Source excerpt</h3>
+              <p>{policy.excerpt}</p>
+            </section>
+          ) : null}
+        </div>
+      </section>
+    </div>
   );
 }
 
